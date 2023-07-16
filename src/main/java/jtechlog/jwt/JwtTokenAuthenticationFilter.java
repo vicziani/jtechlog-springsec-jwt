@@ -1,22 +1,20 @@
 package jtechlog.jwt;
 
+import lombok.AllArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import javax.servlet.FilterChain;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
+@AllArgsConstructor
 public class JwtTokenAuthenticationFilter extends OncePerRequestFilter {
 
 
     private JwtCookieStore jwtCookieStore;
-
-    public JwtTokenAuthenticationFilter(JwtCookieStore jwtCookieStore) {
-        this.jwtCookieStore = jwtCookieStore;
-    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,

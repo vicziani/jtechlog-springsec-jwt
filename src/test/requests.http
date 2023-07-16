@@ -1,0 +1,15 @@
+### Login
+# @no-cookie-jar
+POST http://localhost:8080/api/auth
+Content-Type: application/json
+
+{
+    "username": "user",
+    "password": "user"
+}
+
+### Hello
+# Ellenkező esetben eltárolja a cookie-t, és ha nem küldöm is bejelentkeztet
+# @no-cookie-jar
+GET http://localhost:8080/api/hello
+Cookie: token=eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJ1c2VyIiwiYXV0aG9yaXRpZXMiOlsiUk9MRV9VU0VSIl0sImlhdCI6MTY4ODA3NDg4MiwiZXhwIjoxNjg4MDc2NjgyfQ.VrSjoiKjrOv9grvGbv2J84k1b8UufZ_maYHq08O041EJMP0ymNIRU2qQQu9vBiJ4f9t3TssRdiWnuTnnHxpL2Q

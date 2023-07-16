@@ -8,14 +8,13 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
-import javax.servlet.http.Cookie;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class JwtCookieStore {
 
@@ -34,25 +33,25 @@ public class JwtCookieStore {
         storeTokenInCookie(response, token);
     }
 
-    private void storeTokenInCookie(HttpServletResponse response, String token) {
-        Cookie cookie = new Cookie(COOKIE_NAME, token);
-        cookie.setMaxAge(EXPIRATION);
-        cookie.setPath("/api");
-        cookie.setHttpOnly(true);
-        response.addCookie(cookie);
-    }
-
     private String generateToken(Authentication auth) {
         long now = System.currentTimeMillis();
 
         return Jwts.builder()
                     .setSubject(auth.getName())
                     .claim("authorities", auth.getAuthorities().stream()
-                            .map(GrantedAuthority::getAuthority).collect(Collectors.toList()))
+                            .map(GrantedAuthority::getAuthority).toList())
                     .setIssuedAt(new Date(now))
                     .setExpiration(new Date(now + EXPIRATION))
                     .signWith(SignatureAlgorithm.HS512, secret)
                     .compact();
+    }
+
+    private void storeTokenInCookie(HttpServletResponse response, String token) {
+        Cookie cookie = new Cookie(COOKIE_NAME, token);
+        cookie.setMaxAge(EXPIRATION);
+        cookie.setPath("/api");
+        cookie.setHttpOnly(true);
+        response.addCookie(cookie);
     }
 
     public Optional<Authentication> retrieveToken(HttpServletRequest request) {
@@ -73,7 +72,7 @@ public class JwtCookieStore {
             List<String> authorities = (List<String>) claims.get("authorities");
 
             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                    username, null, authorities.stream().map(SimpleGrantedAuthority::new).collect(Collectors.toList()));
+                    username, null, authorities.stream().map(SimpleGrantedAuthority::new).toList());
 
             return Optional.of(auth);
         }
@@ -81,13 +80,11 @@ public class JwtCookieStore {
     }
 
     private Optional<Cookie> findCookie(HttpServletRequest request) {
-        if (request.getCookies() == null) {
-            return Optional.empty();
-        }
-        return Arrays.stream(request.getCookies())
+        return Optional.ofNullable(request.getCookies())
+                .stream()
+                .flatMap(Arrays::stream)
                 .filter(c -> c.getName().equals(COOKIE_NAME))
                 .findAny();
     }
-
 
 }

@@ -1,34 +1,37 @@
 package jtechlog.jwt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.env.Environment;
-import org.springframework.http.HttpMethod;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
-public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
-
-    private static final String SECRET_PROPERTY_NAME = "security.jwt.secret";
-
-    @Autowired
-    private Environment environment;
+@EnableConfigurationProperties(SecurityProperties.class)
+public class WebSecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -36,36 +39,46 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
     private static void handleException(HttpServletRequest req, HttpServletResponse rsp, AuthenticationException e)
-    throws IOException {
+            throws IOException {
         PrintWriter writer = rsp.getWriter();
         writer.println(new ObjectMapper().writeValueAsString(new AuthorizationResponse("error", "Unauthorized")));
         rsp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
     }
 
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        String secret = environment.getProperty(SECRET_PROPERTY_NAME);
-        JwtCookieStore jwtCookieStore = new JwtCookieStore(secret.getBytes());
-        http.csrf().disable()
-                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                .and()
-                .exceptionHandling().authenticationEntryPoint(WebSecurityConfig::handleException)
-                .and()
-                .addFilter(new JwtUsernameAndPasswordAuthenticationFilter(jwtCookieStore, authenticationManager()))
-                .addFilterAfter(new JwtTokenAuthenticationFilter(jwtCookieStore), UsernamePasswordAuthenticationFilter.class)
-                .authorizeRequests()
-                .antMatchers(HttpMethod.POST, "/api/auth").permitAll()
-                .antMatchers("/**").hasRole("USER")
-                .anyRequest().authenticated();
+    @Bean
+    public AuthenticationManager authenticationManager() {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(userDetailsService());
+        authProvider.setPasswordEncoder(passwordEncoder());
+        return new ProviderManager(authProvider);
     }
 
-    @Override
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth
-                .inMemoryAuthentication()
-                .withUser("user")
-                .password("user")
-                .authorities("ROLE_USER");
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http, SecurityProperties securityProperties) throws Exception {
+        String secret = securityProperties.getJwtSecret();
+        JwtCookieStore jwtCookieStore = new JwtCookieStore(secret.getBytes());
+        http
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(configurer ->
+                        configurer.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 1
+                .exceptionHandling(configurer ->
+                        configurer.authenticationEntryPoint(WebSecurityConfig::handleException)) // 2
+                .addFilter(
+                        new JwtUsernameAndPasswordAuthenticationFilter(jwtCookieStore, authenticationManager())) // 3
+                .addFilterAfter(
+                        new JwtTokenAuthenticationFilter(jwtCookieStore), UsernamePasswordAuthenticationFilter.class) // 4
+                .authorizeHttpRequests(auth ->
+                        auth
+                                .anyRequest().authenticated()
+                ) // 5
+        ;
+        return http.build();
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        return new InMemoryUserDetailsManager(
+                new User("user", "user", List.of(new SimpleGrantedAuthority("ROLE_USER"))));
     }
 
 }
